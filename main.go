@@ -8,6 +8,7 @@ import (
 
 	"github.com/cyverse-de/dbutil"
 	"github.com/pkg/errors"
+	gr "gonum.org/v1/gonum/graph"
 
 	sq "github.com/Masterminds/squirrel"
 
@@ -91,6 +92,28 @@ func main() {
 	}
 	for _, fk := range fks {
 		fmt.Printf("FK: %s.%s -> %s.%s\n", fk.FromTable, fk.FromColumn, fk.ToTable, fk.ToColumn)
+	}
+
+	graph, nodemap, backmap, err := MakeNodeGraph(tables, fks, nil)
+
+	for k, v := range nodemap {
+		fmt.Printf("%s -> %d\n", k, v)
+	}
+
+	edges := graph.Edges()
+	for edges.Next() {
+		e := edges.Edge()
+		fmt.Printf("Edge: %d -> %d\n", e.From(), e.To())
+	}
+
+	nodes := graph.Nodes()
+	for nodes.Next() {
+		name := backmap[nodes.Node().ID()]
+		if graph.From(nodes.Node().ID()) == gr.Empty {
+			fmt.Printf("%s has no dependencies\n", name)
+		} else {
+			fmt.Printf("%s has %d dependencies\n", name, graph.From(nodes.Node().ID()).Len())
+		}
 	}
 	//err = migratePermissions(permsDB, destDB, *permsSchema)
 	//if err != nil {

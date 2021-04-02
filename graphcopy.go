@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/pkg/errors"
+	"gonum.org/v1/gonum/graph/simple"
 
 	sq "github.com/Masterminds/squirrel"
 )
@@ -74,4 +75,29 @@ func GetForeignKeys(tx *sql.Tx, tables []string) ([]ForeignKey, error) {
 	}
 	return fks, err
 
+}
+
+func MakeNodeGraph(tables []string, fks []ForeignKey, donetables []string) (*simple.DirectedGraph, map[string]int64, map[int64]string, error) {
+	graph := simple.NewDirectedGraph()
+	nodemap := make(map[string]int64)
+	backmap := make(map[int64]string)
+	for _, table := range tables {
+		node := graph.NewNode()
+		graph.AddNode(node)
+		nodemap[table] = node.ID()
+		backmap[node.ID()] = table
+	}
+
+	for _, fk := range fks {
+		fromId := nodemap[fk.FromTable]
+		toId := nodemap[fk.ToTable]
+		// process donetables
+		if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
+			graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
+		} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
+			return nil, nil, nil, errors.New("A table referenced in an FK is not in the list of tables")
+		}
+	}
+
+	return graph, nodemap, backmap, nil
 }

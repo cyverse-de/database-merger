@@ -83,6 +83,15 @@ func main() {
 	for _, table := range tables {
 		fmt.Printf("Table: %s\n", table)
 	}
+
+	fks, err := GetForeignKeys(tx, tables)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	for _, fk := range fks {
+		fmt.Printf("FK: %s.%s -> %s.%s\n", fk.FromTable, fk.FromColumn, fk.ToTable, fk.ToColumn)
+	}
 	//err = migratePermissions(permsDB, destDB, *permsSchema)
 	//if err != nil {
 	//	// XXX log error

@@ -94,7 +94,7 @@ func main() {
 		fmt.Printf("FK: %s.%s -> %s.%s\n", fk.FromTable, fk.FromColumn, fk.ToTable, fk.ToColumn)
 	}
 
-	graph, nodemap, backmap, err := MakeNodeGraph(tables, fks, []string{"version", "resource_types"})
+	graph, nodemap, backmap, err := MakeNodeGraph(tables, fks)
 
 	for k, v := range nodemap {
 		fmt.Printf("%s -> %d\n", k, v)
@@ -115,6 +115,17 @@ func main() {
 			fmt.Printf("%s has %d dependencies\n", name, graph.From(nodes.Node().ID()).Len())
 		}
 	}
+
+	ordered, err := GetNodeOrder(graph)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Println("TABLE ORDER")
+	for _, nodeid := range ordered {
+		fmt.Printf("%s\n", backmap[nodeid])
+	}
+
 	//err = migratePermissions(permsDB, destDB, *permsSchema)
 	//if err != nil {
 	//	// XXX log error

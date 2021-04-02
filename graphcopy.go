@@ -3,11 +3,12 @@ package main
 import (
 	"database/sql"
 
-	set "github.com/deckarep/golang-set"
-	"github.com/pkg/errors"
-	"gonum.org/v1/gonum/graph/simple"
-
 	sq "github.com/Masterminds/squirrel"
+
+	"github.com/pkg/errors"
+
+	"gonum.org/v1/gonum/graph/simple"
+	"gonum.org/v1/gonum/graph/topo"
 )
 
 type ForeignKey struct {
@@ -78,38 +79,46 @@ func GetForeignKeys(tx *sql.Tx, tables []string) ([]ForeignKey, error) {
 
 }
 
-func MakeNodeGraph(tables []string, fks []ForeignKey, donetables []string) (*simple.DirectedGraph, map[string]int64, map[int64]string, error) {
-	doneset := set.NewSet()
-	for _, table := range donetables {
-		doneset.Add(table)
-	}
+func MakeNodeGraph(tables []string, fks []ForeignKey) (*simple.DirectedGraph, map[string]int64, map[int64]string, error) {
 
 	graph := simple.NewDirectedGraph()
 	nodemap := make(map[string]int64)
 	backmap := make(map[int64]string)
 	for _, table := range tables {
-		if !doneset.Contains(table) {
-			node := graph.NewNode()
-			graph.AddNode(node)
-			nodemap[table] = node.ID()
-			backmap[node.ID()] = table
-		}
+		node := graph.NewNode()
+		graph.AddNode(node)
+		nodemap[table] = node.ID()
+		backmap[node.ID()] = table
 	}
 
 	for _, fk := range fks {
-		if doneset.Contains(fk.FromTable) || doneset.Contains(fk.ToTable) {
-			// we don't want to do anything with this edge, and the table(s) won't be in the graph
-		} else {
-			fromId := nodemap[fk.FromTable]
-			toId := nodemap[fk.ToTable]
-			// process donetables
-			if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
-				graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
-			} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
-				return nil, nil, nil, errors.New("A table referenced in an FK is not in the graph")
-			}
+		fromId := nodemap[fk.FromTable]
+		toId := nodemap[fk.ToTable]
+		if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
+			graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
+		} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
+			return nil, nil, nil, errors.New("A table referenced in an FK is not in the graph")
 		}
 	}
 
 	return graph, nodemap, backmap, nil
+}
+
+func GetNodeOrder(graph *simple.DirectedGraph) ([]int64, error) {
+	sorted, err := topo.Sort(graph)
+	if err != nil {
+		return nil, errors.Wrap(err, "Couldn't sort the graph. This probably means that the set of tables is not a directed acyclic graph, and that probably means we can't help you here.")
+	}
+	// Reverse the array so it's the order to copy tables, not the opposite
+	for i, j := 0, len(sorted)-1; i < j; i, j = i+1, j-1 {
+		sorted[i], sorted[j] = sorted[j], sorted[i]
+	}
+
+	ret := make([]int64, len(sorted))
+	// Replace Nodes with their IDs
+	for i := range sorted {
+		ret[i] = sorted[i].ID()
+	}
+
+	return ret, nil
 }

@@ -18,6 +18,19 @@ type ForeignKey struct {
 	ToColumn   string
 }
 
+type TableNodeMap struct {
+	ntMap map[int64]string
+	tnMap map[string]int64
+}
+
+func (t *TableNodeMap) Table(nodeid int64) string {
+	return t.ntMap[nodeid]
+}
+
+func (t *TableNodeMap) Node(table string) int64 {
+	return t.tnMap[table]
+}
+
 func GetTables(tx *sql.Tx, schema string) ([]string, error) {
 	rows, err := psql.
 		Select("table_name").
@@ -79,7 +92,7 @@ func GetForeignKeys(tx *sql.Tx, tables []string) ([]ForeignKey, error) {
 
 }
 
-func MakeNodeGraph(tables []string, fks []ForeignKey) (*simple.DirectedGraph, map[string]int64, map[int64]string, error) {
+func MakeNodeGraph(tables []string, fks []ForeignKey) (*simple.DirectedGraph, *TableNodeMap, error) {
 
 	graph := simple.NewDirectedGraph()
 	nodemap := make(map[string]int64)
@@ -97,11 +110,11 @@ func MakeNodeGraph(tables []string, fks []ForeignKey) (*simple.DirectedGraph, ma
 		if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
 			graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
 		} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
-			return nil, nil, nil, errors.New("A table referenced in an FK is not in the graph")
+			return nil, nil, errors.New("A table referenced in an FK is not in the graph")
 		}
 	}
 
-	return graph, nodemap, backmap, nil
+	return graph, &TableNodeMap{tnMap: nodemap, ntMap: backmap}, nil
 }
 
 func GetNodeOrder(graph *simple.DirectedGraph) ([]int64, error) {

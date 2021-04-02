@@ -94,27 +94,7 @@ func main() {
 		fmt.Printf("FK: %s.%s -> %s.%s\n", fk.FromTable, fk.FromColumn, fk.ToTable, fk.ToColumn)
 	}
 
-	graph, nodemap, backmap, err := MakeNodeGraph(tables, fks)
-
-	for k, v := range nodemap {
-		fmt.Printf("%s -> %d\n", k, v)
-	}
-
-	edges := graph.Edges()
-	for edges.Next() {
-		e := edges.Edge()
-		fmt.Printf("Edge: %d -> %d\n", e.From(), e.To())
-	}
-
-	nodes := graph.Nodes()
-	for nodes.Next() {
-		name := backmap[nodes.Node().ID()]
-		if graph.From(nodes.Node().ID()) == gr.Empty {
-			fmt.Printf("%s has no dependencies\n", name)
-		} else {
-			fmt.Printf("%s has %d dependencies\n", name, graph.From(nodes.Node().ID()).Len())
-		}
-	}
+	graph, nodemap, err := MakeNodeGraph(tables, fks)
 
 	ordered, err := GetNodeOrder(graph)
 	if err != nil {
@@ -123,7 +103,11 @@ func main() {
 	}
 	fmt.Println("TABLE ORDER")
 	for _, nodeid := range ordered {
-		fmt.Printf("%s\n", backmap[nodeid])
+		if graph.From(nodeid) == gr.Empty {
+			fmt.Printf("%s has no dependencies\n", nodemap.Table(nodeid))
+		} else {
+			fmt.Printf("%s has %d dependenc(y/ies)\n", nodemap.Table(nodeid), graph.From(nodeid).Len())
+		}
 	}
 
 	//err = migratePermissions(permsDB, destDB, *permsSchema)

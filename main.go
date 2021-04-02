@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/cyverse-de/dbutil"
 	"github.com/pkg/errors"
@@ -74,15 +75,12 @@ func main() {
 	}
 	defer tx.Rollback()
 
-	fmt.Println(*permsSchema)
+	fmt.Printf("Schema: %s\n", *permsSchema)
 
 	tables, err := GetTables(tx, "public")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
-	}
-	for _, table := range tables {
-		fmt.Printf("Table: %s\n", table)
 	}
 
 	fks, err := GetForeignKeys(tx, tables)
@@ -90,23 +88,25 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	for _, fk := range fks {
-		fmt.Printf("FK: %s.%s -> %s.%s\n", fk.FromTable, fk.FromColumn, fk.ToTable, fk.ToColumn)
-	}
 
-	graph, nodemap, err := MakeNodeGraph(tables, fks)
+	graph, err := MakeNodeGraph(tables, fks)
 
-	ordered, err := GetNodeOrder(graph)
+	ordered, err := graph.GetNodeOrder()
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 	fmt.Println("TABLE ORDER")
 	for _, nodeid := range ordered {
-		if graph.From(nodeid) == gr.Empty {
-			fmt.Printf("%s has no dependencies\n", nodemap.Table(nodeid))
+		if graph.Graph.From(nodeid) == gr.Empty {
+			fmt.Printf("%s has no dependencies\n", graph.Map.Table(nodeid))
 		} else {
-			fmt.Printf("%s has %d dependenc(y/ies)\n", nodemap.Table(nodeid), graph.From(nodeid).Len())
+			fromNodes := graph.Graph.From(nodeid)
+			tables := make([]string, fromNodes.Len())
+			for i := 0; fromNodes.Next(); i++ {
+				tables[i] = graph.Map.Table(fromNodes.Node().ID())
+			}
+			fmt.Printf("%s depends on %s (%d)\n", graph.Map.Table(nodeid), strings.Join(tables, ", "), len(tables))
 		}
 	}
 

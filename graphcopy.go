@@ -31,6 +31,11 @@ func (t *TableNodeMap) Node(table string) int64 {
 	return t.tnMap[table]
 }
 
+type TableGraph struct {
+	Graph *simple.DirectedGraph
+	Map   *TableNodeMap
+}
+
 func GetTables(tx *sql.Tx, schema string) ([]string, error) {
 	rows, err := psql.
 		Select("table_name").
@@ -92,7 +97,7 @@ func GetForeignKeys(tx *sql.Tx, tables []string) ([]ForeignKey, error) {
 
 }
 
-func MakeNodeGraph(tables []string, fks []ForeignKey) (*simple.DirectedGraph, *TableNodeMap, error) {
+func MakeNodeGraph(tables []string, fks []ForeignKey) (*TableGraph, error) {
 
 	graph := simple.NewDirectedGraph()
 	nodemap := make(map[string]int64)
@@ -110,15 +115,15 @@ func MakeNodeGraph(tables []string, fks []ForeignKey) (*simple.DirectedGraph, *T
 		if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
 			graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
 		} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
-			return nil, nil, errors.New("A table referenced in an FK is not in the graph")
+			return nil, errors.New("A table referenced in an FK is not in the graph")
 		}
 	}
 
-	return graph, &TableNodeMap{tnMap: nodemap, ntMap: backmap}, nil
+	return &TableGraph{Graph: graph, Map: &TableNodeMap{tnMap: nodemap, ntMap: backmap}}, nil
 }
 
-func GetNodeOrder(graph *simple.DirectedGraph) ([]int64, error) {
-	sorted, err := topo.Sort(graph)
+func (t *TableGraph) GetNodeOrder() ([]int64, error) {
+	sorted, err := topo.Sort(t.Graph)
 	if err != nil {
 		return nil, errors.Wrap(err, "Couldn't sort the graph. This probably means that the set of tables is not a directed acyclic graph, and that probably means we can't help you here.")
 	}

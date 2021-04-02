@@ -9,8 +9,12 @@ import (
 	"github.com/cyverse-de/dbutil"
 	"github.com/pkg/errors"
 
+	sq "github.com/Masterminds/squirrel"
+
 	_ "github.com/lib/pq"
 )
+
+var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func initDatabase(driverName, databaseURI string) (*sql.DB, error) {
 	wrapMsg := "unable to initialize the database"
@@ -62,9 +66,26 @@ func main() {
 	}
 	defer permsDB.Close()
 
-	err = migratePermissions(permsDB, destDB, *permsSchema)
+	tx, err := permsDB.Begin();
 	if err != nil {
-		// XXX log error
+		fmt.Println(err.Error())
 		return
 	}
+	defer tx.Rollback()
+
+	fmt.Println(*permsSchema)
+
+	tables, err := GetTables(tx, "public")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	for _, table := range tables {
+		fmt.Printf("Table: %s\n", table)
+	}
+	//err = migratePermissions(permsDB, destDB, *permsSchema)
+	//if err != nil {
+	//	// XXX log error
+	//	return
+	//}
 }

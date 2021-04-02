@@ -4,11 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/pkg/errors"
-
-	sq "github.com/Masterminds/squirrel"
 )
-
-var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 func migrateSubjects(sourceTx, destTx *sql.Tx, schema string) error {
 	wrapMsg := "subject migration failed"

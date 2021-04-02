@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 
+	set "github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
 	"gonum.org/v1/gonum/graph/simple"
 
@@ -78,24 +79,35 @@ func GetForeignKeys(tx *sql.Tx, tables []string) ([]ForeignKey, error) {
 }
 
 func MakeNodeGraph(tables []string, fks []ForeignKey, donetables []string) (*simple.DirectedGraph, map[string]int64, map[int64]string, error) {
+	doneset := set.NewSet()
+	for _, table := range donetables {
+		doneset.Add(table)
+	}
+
 	graph := simple.NewDirectedGraph()
 	nodemap := make(map[string]int64)
 	backmap := make(map[int64]string)
 	for _, table := range tables {
-		node := graph.NewNode()
-		graph.AddNode(node)
-		nodemap[table] = node.ID()
-		backmap[node.ID()] = table
+		if !doneset.Contains(table) {
+			node := graph.NewNode()
+			graph.AddNode(node)
+			nodemap[table] = node.ID()
+			backmap[node.ID()] = table
+		}
 	}
 
 	for _, fk := range fks {
-		fromId := nodemap[fk.FromTable]
-		toId := nodemap[fk.ToTable]
-		// process donetables
-		if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
-			graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
-		} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
-			return nil, nil, nil, errors.New("A table referenced in an FK is not in the list of tables")
+		if doneset.Contains(fk.FromTable) || doneset.Contains(fk.ToTable) {
+			// we don't want to do anything with this edge, and the table(s) won't be in the graph
+		} else {
+			fromId := nodemap[fk.FromTable]
+			toId := nodemap[fk.ToTable]
+			// process donetables
+			if !graph.HasEdgeFromTo(fromId, toId) && (graph.Node(fromId) != nil) && (graph.Node(toId) != nil) {
+				graph.SetEdge(graph.NewEdge(graph.Node(fromId), graph.Node(toId)))
+			} else if graph.Node(fromId) == nil || graph.Node(toId) == nil {
+				return nil, nil, nil, errors.New("A table referenced in an FK is not in the graph")
+			}
 		}
 	}
 

@@ -94,7 +94,7 @@ func main() {
 		fmt.Printf("FK: %s.%s -> %s.%s\n", fk.FromTable, fk.FromColumn, fk.ToTable, fk.ToColumn)
 	}
 
-	graph, nodemap, backmap, err := MakeNodeGraph(tables, fks, nil)
+	graph, nodemap, backmap, err := MakeNodeGraph(tables, fks, []string{"version", "resource_types"})
 
 	for k, v := range nodemap {
 		fmt.Printf("%s -> %d\n", k, v)

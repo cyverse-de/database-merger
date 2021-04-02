@@ -10,10 +10,10 @@ import (
 
 func GetTables(tx *sql.Tx, schema string) ([]string, error) {
 	rows, err := psql.
-	    Select("table_name").
-	    From("information_schema.tables").
-	    Where(sq.Eq{"table_schema": schema}).
-	    RunWith(tx).Query()
+		Select("table_name").
+		From("information_schema.tables").
+		Where(sq.Eq{"table_schema": schema}).
+		RunWith(tx).Query()
 	if err != nil {
 		return nil, errors.Wrap(err, "GetTables: error running table_name query")
 	}

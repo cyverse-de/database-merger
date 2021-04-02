@@ -1,8 +1,8 @@
 package main
 
 import (
-	"flag"
 	"database/sql"
+	"flag"
 	"fmt"
 	"os"
 
@@ -34,8 +34,8 @@ func initDatabase(driverName, databaseURI string) (*sql.DB, error) {
 
 func main() {
 	var (
-		permsURI = flag.String("permissions", "", "URI of the permissions database (postgresql)")
-		destURI = flag.String("destination", "", "URI of the destination database (postgresql)")
+		permsURI    = flag.String("permissions", "", "URI of the permissions database (postgresql)")
+		destURI     = flag.String("destination", "", "URI of the destination database (postgresql)")
 		permsSchema = flag.String("permissions-schema", "permissions", "schema to use in the destination DB for the permissions tables")
 	)
 
@@ -66,7 +66,7 @@ func main() {
 	}
 	defer permsDB.Close()
 
-	tx, err := permsDB.Begin();
+	tx, err := permsDB.Begin()
 	if err != nil {
 		fmt.Println(err.Error())
 		return

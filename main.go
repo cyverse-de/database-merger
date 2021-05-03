@@ -36,9 +36,10 @@ func initDatabase(driverName, databaseURI string) (*sql.DB, error) {
 
 func main() {
 	var (
-		permsURI    = flag.String("permissions", "", "URI of the permissions database (postgresql)")
-		destURI     = flag.String("destination", "", "URI of the destination database (postgresql)")
-		permsSchema = flag.String("permissions-schema", "permissions", "schema to use in the destination DB for the permissions tables")
+		sourceURI    = flag.String("source", "", "URI of the source database (postgresql)")
+		destURI      = flag.String("destination", "", "URI of the destination database (postgresql)")
+		sourceSchema = flag.String("source-schema", "public", "schema to copy into the destination database")
+		destSchema   = flag.String("destination-schema", "", "schema to use in the destination DB for the tables")
 	)
 
 	flag.Parse()
@@ -48,8 +49,14 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(-1)
 	}
-	if *permsURI == "" {
-		fmt.Println("--permissions is required")
+	if *sourceURI == "" {
+		fmt.Println("--source is required")
+		flag.PrintDefaults()
+		os.Exit(-1)
+	}
+
+	if *destSchema == "" {
+		fmt.Println("--destination-schema is required")
 		flag.PrintDefaults()
 		os.Exit(-1)
 	}
@@ -61,23 +68,24 @@ func main() {
 	}
 	defer destDB.Close()
 
-	permsDB, err := initDatabase("postgres", *permsURI)
+	sourceDB, err := initDatabase("postgres", *sourceURI)
 	if err != nil {
 		// XXX log error
 		return
 	}
-	defer permsDB.Close()
+	defer sourceDB.Close()
 
-	tx, err := permsDB.Begin()
+	tx, err := sourceDB.Begin()
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 	defer tx.Rollback()
 
-	fmt.Printf("Schema: %s\n", *permsSchema)
+	fmt.Printf("Source Schema: %s\n", *sourceSchema)
+	fmt.Printf("Destination Schema: %s\n", *destSchema)
 
-	tables, err := GetTables(tx, "public")
+	tables, err := GetTables(tx, *sourceSchema)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -102,15 +110,15 @@ func main() {
 			fmt.Printf("%s has no dependencies\n", graph.Map.Table(nodeid))
 		} else {
 			fromNodes := graph.Graph.From(nodeid)
-			tables := make([]string, fromNodes.Len())
+			t := make([]string, fromNodes.Len())
 			for i := 0; fromNodes.Next(); i++ {
-				tables[i] = graph.Map.Table(fromNodes.Node().ID())
+				t[i] = graph.Map.Table(fromNodes.Node().ID())
 			}
-			fmt.Printf("%s depends on %s (%d)\n", graph.Map.Table(nodeid), strings.Join(tables, ", "), len(tables))
+			fmt.Printf("%s depends on %s (%d)\n", graph.Map.Table(nodeid), strings.Join(t, ", "), len(t))
 		}
 	}
 
-	//err = migratePermissions(permsDB, destDB, *permsSchema)
+	//err = migratePermissions(sourceDB, destDB, *permsSchema)
 	//if err != nil {
 	//	// XXX log error
 	//	return

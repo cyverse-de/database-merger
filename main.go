@@ -82,6 +82,12 @@ func main() {
 	}
 	defer tx.Rollback()
 
+	_, err = tx.Exec("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	destTx, err := destDB.Begin()
 	if err != nil {
 		fmt.Println(err.Error())

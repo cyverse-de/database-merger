@@ -138,6 +138,96 @@ func GetTableColumns(tx *sql.Tx, table string, schema string) ([]Column, error) 
 	return cols, err
 }
 
+func RunInsert(tx *sql.Tx, builder sq.InsertBuilder) error {
+	res, err := builder.RunWith(tx).Exec()
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		fmt.Printf("RunInsert: Error getting affected rows: %s\n", err.Error())
+	}
+	fmt.Printf("Inserted %d rows\n", rows)
+	return nil
+}
+
+func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema string, destSchema string, deleteFirst bool) error {
+	batchSize := 10000 // maybe pass as argument or depend on number of columns? this allows 6 columns (65535 max args, 6 columns * 10000 rows)
+	cols, err := GetTableColumns(sourceTx, table, sourceSchema)
+	if err != nil {
+		return errors.Wrap(err, "CopyTable: error getting table columns")
+	}
+	colNames := make([]string, len(cols))
+	for i, col := range cols {
+		colNames[i] = col.ColumnName
+	}
+	// check if dest matches?
+
+	sourceData, err := psql.
+		Select().
+		Columns(colNames...).
+		From(fmt.Sprintf("%s.%s", sourceSchema, table)).
+		RunWith(sourceTx).Query()
+	if err != nil {
+		return errors.Wrap(err, "CopyTable: error fetching source data")
+	}
+
+	if deleteFirst {
+		res, err := psql.Delete(fmt.Sprintf("%s.%s", destSchema, table)).RunWith(destTx).Exec()
+		if err != nil {
+			return errors.Wrap(err, "CopyTable: deleting old data")
+		}
+		rows, err := res.RowsAffected()
+		if err != nil {
+			fmt.Printf("CopyTable: Error getting affected rows after delete: %s\n", err.Error())
+		}
+		fmt.Printf("Deleted %d rows from %s.%s\n", rows, destSchema, table)
+	}
+
+	builder := psql.
+		Insert(fmt.Sprintf("%s.%s", destSchema, table)).
+		Columns(colNames...)
+
+	toInsertRows := 0
+	for sourceData.Next() {
+		data := make([]interface{}, len(cols))
+		dp := make([]interface{}, len(cols))
+		for i := range data {
+			dp[i] = &data[i]
+		}
+
+		err = sourceData.Scan(dp...)
+		if err != nil {
+			return errors.Wrap(err, "CopyTable: error scanning row")
+		}
+
+		builder = builder.Values(data...)
+		toInsertRows++
+
+		if toInsertRows >= batchSize {
+			err = RunInsert(destTx, builder)
+			if err != nil {
+				return errors.Wrap(err, "CopyTable: inserting rows")
+			}
+			// refresh number of rows and builder
+			toInsertRows = 0
+			builder = psql.
+				Insert(fmt.Sprintf("%s.%s", destSchema, table)).
+				Columns(colNames...)
+		}
+	}
+
+	// clear out any remaining rows
+	if toInsertRows > 0 {
+		err = RunInsert(destTx, builder)
+		if err != nil {
+			return errors.Wrap(err, "CopyTable: inserting rows")
+		}
+	}
+
+	return nil
+}
+
 func MakeNodeGraph(tables []string, fks []ForeignKey) (*TableGraph, error) {
 
 	graph := simple.NewDirectedGraph()

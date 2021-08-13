@@ -82,6 +82,13 @@ func main() {
 	}
 	defer tx.Rollback()
 
+	destTx, err := destDB.Begin()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	defer destTx.Rollback()
+
 	fmt.Printf("Source Schema: %s\n", *sourceSchema)
 	fmt.Printf("Destination Schema: %s\n", *destSchema)
 
@@ -126,6 +133,14 @@ func main() {
 			colstrings[i] = col.String()
 		}
 		fmt.Printf("%s: %s\n", graph.Map.Table(nodeid), strings.Join(colstrings, ", "))
+		// version table will be in the public schema in the new DB, don't try to copy it
+		if graph.Map.Table(nodeid) != "version" {
+			err = CopyTable(tx, destTx, graph.Map.Table(nodeid), *sourceSchema, *destSchema, true)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+		}
 	}
 
 	//err = migratePermissions(sourceDB, destDB, *permsSchema)

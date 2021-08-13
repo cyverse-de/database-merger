@@ -138,7 +138,7 @@ func GetTableColumns(tx *sql.Tx, table string, schema string) ([]Column, error) 
 	return cols, err
 }
 
-func RunInsert(tx *sql.Tx, builder sq.InsertBuilder) error {
+func RunInsert(tx *sql.Tx, builder sq.InsertBuilder, priorRows int64) error {
 	res, err := builder.RunWith(tx).Exec()
 	if err != nil {
 		return err
@@ -147,12 +147,13 @@ func RunInsert(tx *sql.Tx, builder sq.InsertBuilder) error {
 	if err != nil {
 		fmt.Printf("RunInsert: Error getting affected rows: %s\n", err.Error())
 	}
-	fmt.Printf("Inserted %d rows\n", rows)
+	fmt.Printf("Inserted %d rows (%d new)\n", rows+priorRows, rows)
 	return nil
 }
 
 func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema string, destSchema string, deleteFirst bool) error {
-	batchSize := 10000 // maybe pass as argument or depend on number of columns? this allows 6 columns (65535 max args, 6 columns * 10000 rows)
+	var batchSize int64
+	batchSize = 10000 // maybe pass as argument or depend on number of columns? this allows 6 columns (65535 max args, 6 columns * 10000 rows)
 	cols, err := GetTableColumns(sourceTx, table, sourceSchema)
 	if err != nil {
 		return errors.Wrap(err, "CopyTable: error getting table columns")
@@ -188,7 +189,9 @@ func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema stri
 		Insert(fmt.Sprintf("%s.%s", destSchema, table)).
 		Columns(colNames...)
 
-	toInsertRows := 0
+	var toInsertRows, insertedRows int64
+	toInsertRows = 0
+	insertedRows = 0
 	for sourceData.Next() {
 		data := make([]interface{}, len(cols))
 		dp := make([]interface{}, len(cols))
@@ -205,10 +208,11 @@ func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema stri
 		toInsertRows++
 
 		if toInsertRows >= batchSize {
-			err = RunInsert(destTx, builder)
+			err = RunInsert(destTx, builder, insertedRows)
 			if err != nil {
 				return errors.Wrap(err, "CopyTable: inserting rows")
 			}
+			insertedRows = insertedRows + toInsertRows
 			// refresh number of rows and builder
 			toInsertRows = 0
 			builder = psql.
@@ -219,7 +223,7 @@ func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema stri
 
 	// clear out any remaining rows
 	if toInsertRows > 0 {
-		err = RunInsert(destTx, builder)
+		err = RunInsert(destTx, builder, insertedRows)
 		if err != nil {
 			return errors.Wrap(err, "CopyTable: inserting rows")
 		}

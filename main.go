@@ -116,6 +116,16 @@ func main() {
 			}
 			fmt.Printf("%s depends on %s (%d)\n", graph.Map.Table(nodeid), strings.Join(t, ", "), len(t))
 		}
+		cols, err := GetTableColumns(tx, graph.Map.Table(nodeid), *sourceSchema)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		colstrings := make([]string, len(cols))
+		for i, col := range cols {
+			colstrings[i] = col.String()
+		}
+		fmt.Printf("%s: %s\n", graph.Map.Table(nodeid), strings.Join(colstrings, ", "))
 	}
 
 	//err = migratePermissions(sourceDB, destDB, *permsSchema)

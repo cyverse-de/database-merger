@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 
@@ -16,6 +17,15 @@ type ForeignKey struct {
 	FromColumn string
 	ToTable    string
 	ToColumn   string
+}
+
+type Column struct {
+	ColumnName string
+	DataType   string
+}
+
+func (c *Column) String() string {
+	return fmt.Sprintf("%s (%s)", c.ColumnName, c.DataType)
 }
 
 type TableNodeMap struct {
@@ -95,6 +105,37 @@ func GetForeignKeys(tx *sql.Tx, tables []string) ([]ForeignKey, error) {
 	}
 	return fks, err
 
+}
+
+func GetTableColumns(tx *sql.Tx, table string, schema string) ([]Column, error) {
+	rows, err := psql.
+		Select().
+		Columns("column_name, data_type").
+		From("information_schema.columns").
+		Where(sq.And{
+			sq.Eq{"table_name": table},
+			sq.Eq{"table_schema": schema},
+		}).
+		RunWith(tx).Query()
+	if err != nil {
+		return nil, errors.Wrap(err, "GetTableColumns: error running columns query")
+	}
+	defer rows.Close()
+
+	var cols []Column
+	for rows.Next() {
+		var col Column
+		err = rows.Scan(&col.ColumnName, &col.DataType)
+		if err != nil {
+			return nil, errors.Wrap(err, "GetTableColumns: error scanning row")
+		}
+		cols = append(cols, col)
+	}
+	err = rows.Err()
+	if err != nil {
+		err = errors.Wrap(err, "GetTableColumns: rows.Err()")
+	}
+	return cols, err
 }
 
 func MakeNodeGraph(tables []string, fks []ForeignKey) (*TableGraph, error) {

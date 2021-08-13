@@ -142,10 +142,5 @@ func main() {
 			}
 		}
 	}
-
-	//err = migratePermissions(sourceDB, destDB, *permsSchema)
-	//if err != nil {
-	//	// XXX log error
-	//	return
-	//}
+	destTx.Commit()
 }

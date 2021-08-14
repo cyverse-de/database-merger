@@ -34,6 +34,14 @@ func initDatabase(driverName, databaseURI string) (*sql.DB, error) {
 	return db, nil
 }
 
+func txRollbackLogError(tx *sql.Tx) {
+	err := tx.Rollback()
+	if err != nil {
+		// Just log it
+		fmt.Println(err.Error())
+	}
+}
+
 func main() {
 	var (
 		sourceURI    = flag.String("source", "", "URI of the source database (postgresql)")
@@ -80,7 +88,7 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	defer tx.Rollback()
+	defer txRollbackLogError(tx)
 
 	_, err = tx.Exec("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
 	if err != nil {
@@ -93,7 +101,7 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	defer destTx.Rollback()
+	defer txRollbackLogError(destTx)
 
 	fmt.Printf("Source Schema: %s\n", *sourceSchema)
 	fmt.Printf("Destination Schema: %s\n", *destSchema)
@@ -111,6 +119,10 @@ func main() {
 	}
 
 	graph, err := MakeNodeGraph(tables, fks)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
 
 	ordered, err := graph.GetNodeOrder()
 	if err != nil {
@@ -148,5 +160,8 @@ func main() {
 			}
 		}
 	}
-	destTx.Commit()
+	err = destTx.Commit()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }

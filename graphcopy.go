@@ -152,8 +152,7 @@ func RunInsert(tx *sql.Tx, builder sq.InsertBuilder, priorRows int64) error {
 }
 
 func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema string, destSchema string, deleteFirst bool) error {
-	var batchSize int64
-	batchSize = 10000 // maybe pass as argument or depend on number of columns? this allows 6 columns (65535 max args, 6 columns * 10000 rows)
+	var batchSize int64 = 10000 // maybe pass as argument or depend on number of columns? this allows 6 columns (65535 max args, 6 columns * 10000 rows)
 	cols, err := GetTableColumns(sourceTx, table, sourceSchema)
 	if err != nil {
 		return errors.Wrap(err, "CopyTable: error getting table columns")

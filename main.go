@@ -38,7 +38,7 @@ func txRollbackLogError(tx *sql.Tx) {
 	err := tx.Rollback()
 	if err != nil {
 		// Just log it
-		fmt.Println(err.Error())
+		fmt.Println("Error rolling back transaction: ", err.Error())
 	}
 }
 
@@ -163,5 +163,7 @@ func main() {
 	err = destTx.Commit()
 	if err != nil {
 		fmt.Println(err.Error())
+		return
 	}
+	fmt.Println("Committed transaction")
 }

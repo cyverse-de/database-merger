@@ -173,7 +173,7 @@ func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema stri
 	}
 
 	if deleteFirst {
-		res, err := psql.Delete(fmt.Sprintf("%s.%s", destSchema, table)).RunWith(destTx).Exec()
+		res, err := psql.Delete(fmt.Sprintf("%s.%s", destSchema, table)).Suffix("CASCADE").RunWith(destTx).Exec()
 		if err != nil {
 			return errors.Wrap(err, "CopyTable: deleting old data")
 		}

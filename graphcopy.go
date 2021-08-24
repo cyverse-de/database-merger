@@ -173,15 +173,11 @@ func CopyTable(sourceTx *sql.Tx, destTx *sql.Tx, table string, sourceSchema stri
 	}
 
 	if deleteFirst {
-		res, err := psql.Delete(fmt.Sprintf("%s.%s", destSchema, table)).RunWith(destTx).Exec()
+		_, err := destTx.Exec(fmt.Sprintf("TRUNCATE TABLE %s.%s CASCADE", destSchema, table))
 		if err != nil {
 			return errors.Wrap(err, "CopyTable: deleting old data")
 		}
-		rows, err := res.RowsAffected()
-		if err != nil {
-			fmt.Printf("CopyTable: Error getting affected rows after delete: %s\n", err.Error())
-		}
-		fmt.Printf("Deleted %d rows from %s.%s\n", rows, destSchema, table)
+		fmt.Printf("Truncated table %s.%s\n", destSchema, table)
 	}
 
 	builder := psql.

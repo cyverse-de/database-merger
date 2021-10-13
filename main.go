@@ -36,7 +36,7 @@ func initDatabase(driverName, databaseURI string) (*sql.DB, error) {
 
 func txRollbackLogError(tx *sql.Tx) {
 	err := tx.Rollback()
-	if err != nil {
+	if err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
 		// Just log it
 		fmt.Println("Error rolling back transaction: ", err.Error())
 	}

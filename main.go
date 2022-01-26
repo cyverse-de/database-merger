@@ -12,6 +12,7 @@ import (
 	gr "gonum.org/v1/gonum/graph"
 
 	sq "github.com/Masterminds/squirrel"
+	log "github.com/sirupsen/logrus"
 
 	_ "github.com/lib/pq"
 )
@@ -37,8 +38,7 @@ func initDatabase(driverName, databaseURI string) (*sql.DB, error) {
 func txRollbackLogError(tx *sql.Tx) {
 	err := tx.Rollback()
 	if err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-		// Just log it
-		fmt.Println("Error rolling back transaction: ", err.Error())
+		log.Warnf("Error rolling back transaction: %s", err.Error())
 	}
 }
 
@@ -71,35 +71,30 @@ func main() {
 
 	destDB, err := initDatabase("postgres", *destURI)
 	if err != nil {
-		// XXX log error
-		return
+		log.Fatalf("unable to connect to destination database: %s", err.Error())
 	}
 	defer destDB.Close()
 
 	sourceDB, err := initDatabase("postgres", *sourceURI)
 	if err != nil {
-		// XXX log error
-		return
+		log.Fatalf("unable to connect to source database: %s", err.Error())
 	}
 	defer sourceDB.Close()
 
 	tx, err := sourceDB.Begin()
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 	defer txRollbackLogError(tx)
 
 	_, err = tx.Exec("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 
 	destTx, err := destDB.Begin()
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 	defer txRollbackLogError(destTx)
 
@@ -108,26 +103,22 @@ func main() {
 
 	tables, err := GetTables(tx, *sourceSchema)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 
 	fks, err := GetForeignKeys(tx, tables)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 
 	graph, err := MakeNodeGraph(tables, fks)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 
 	ordered, err := graph.GetNodeOrder()
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 	fmt.Println("TABLE ORDER")
 	for _, nodeid := range ordered {
@@ -143,7 +134,7 @@ func main() {
 		}
 		cols, err := GetTableColumns(tx, graph.Map.Table(nodeid), *sourceSchema)
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Fatal(err)
 			return
 		}
 		colstrings := make([]string, len(cols))
@@ -155,15 +146,13 @@ func main() {
 		if graph.Map.Table(nodeid) != "version" {
 			err = CopyTable(tx, destTx, graph.Map.Table(nodeid), *sourceSchema, *destSchema, true)
 			if err != nil {
-				fmt.Println(err.Error())
-				return
+				log.Fatal(err)
 			}
 		}
 	}
 	err = destTx.Commit()
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		log.Fatal(err)
 	}
 	fmt.Println("Committed transaction")
 }
